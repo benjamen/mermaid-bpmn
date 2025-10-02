@@ -1,21 +1,45 @@
 export const bpmnPlugin = {
-  id: 'bpmnFlow',
-  parser: {
-    parse: (text) => text.split("\n").map(line => line.trim()).filter(Boolean)
+  id: "bpmnFlowPlugin",
+  
+  // Preprocessor: detect `bpmnFlow` diagrams
+  preprocess: (text) => {
+    if (text.trim().startsWith("bpmnFlow")) {
+      return {
+        type: "bpmnFlow",
+        content: text.replace(/^bpmnFlow/, "").trim()
+      };
+    }
+    // Return null for diagrams we don't handle
+    return null;
   },
+
   renderer: {
-    draw: async (text, id) => {
-      const container = document.getElementById(id);
-      container.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="100%" height="250">
-          <circle cx="40" cy="60" r="20" class="bpmn-start"/>
-          <rect x="100" y="40" width="120" height="60" rx="8" ry="8" class="bpmn-task"/>
-          <polygon points="280,40 320,70 280,100 240,70" class="bpmn-gateway"/>
-          <circle cx="400" cy="70" r="20" class="bpmn-end"/>
-        </svg>
-      `;
+    draw: async (diagramObj, elementId) => {
+      const container = document.getElementById(elementId);
+      if (!container) return;
+
+      const lines = diagramObj.content.split("\n").map(l => l.trim()).filter(Boolean);
+      
+      // Simple SVG rendering of BPMN elements
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="250">`;
+
+      lines.forEach((line, i) => {
+        if (line.startsWith("startEvent")) {
+          svg += `<circle cx="${50}" cy="${50 + i*70}" r="20" class="bpmn-start"/>`;
+        } else if (line.startsWith("task")) {
+          svg += `<rect x="120" y="${30 + i*70}" width="120" height="60" rx="8" ry="8" class="bpmn-task"/>`;
+        } else if (line.startsWith("gateway")) {
+          svg += `<polygon points="280,${30 + i*70} 320,${60 + i*70} 280,${90 + i*70} 240,${60 + i*70}" class="bpmn-gateway"/>`;
+        } else if (line.startsWith("endEvent")) {
+          svg += `<circle cx="400" cy="${60 + i*70}" r="20" class="bpmn-end"/>`;
+        }
+      });
+
+      svg += "</svg>";
+      container.innerHTML = svg;
     }
   },
+
   styles: `
     .bpmn-task { fill: #e0f7fa; stroke: #006064; stroke-width: 2; }
     .bpmn-start { fill: white; stroke: green; stroke-width: 2; }
