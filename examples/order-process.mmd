@@ -5,6 +5,8 @@ gateway "Payment Approved?" as G1
 task "Ship Goods" as T2
 endEvent "Complete"
 
-start --> T1 --> G1
-G1 -->|yes| T2 --> end
+start --> T1
+T1 --> G1
+G1 -->|yes| T2
 G1 -->|no| end
+T2 --> end
