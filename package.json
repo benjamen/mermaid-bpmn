@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "main": "src/bpmn-plugin.js",
-  "files": ["src/"],
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,6 +15,6 @@
     "mermaid": "^10.4.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0"
+    "vite": "^7.1.8"
   }
 }
