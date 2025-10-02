@@ -1,70 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Mermaid BPMN Playground</title>
-<link rel="stylesheet" href="src/bpmn-theme.css">
+  <meta charset="UTF-8">
+  <title>Mermaid BPMN Playground</title>
+  <link rel="stylesheet" href="src/bpmn-theme.css">
 </head>
 <body>
-<h1>Mermaid BPMN Playground</h1>
+  <h1>Mermaid BPMN Playground</h1>
 
-
-<textarea id="editor" rows="10" cols="60">bpmnFlow
+  <textarea id="editor" rows="10" cols="60">bpmnFlow
 startEvent start
 task T1 "Validate Order"
 gateway G1 "Payment OK?"
 task T2 "Ship Order"
 endEvent end
 
-
 start --> T1
 T1 --> G1
 G1 -->|yes| T2
 G1 -->|no| end
 T2 --> end
-</textarea>
+  </textarea>
 
+  <div class="controls">
+    <button id="renderBtn">Render</button>
+    <button id="exampleBtn">Load Example</button>
+  </div>
 
-<div class="controls">
-<button id="renderBtn">Render</button>
-<button id="exampleBtn">Load Example</button>
-</div>
+  <div id="diagram"></div>
 
+  <script type="module">
+    import * as mermaid from "https://cdn.jsdelivr.net/npm/mermaid@9.4.0/dist/mermaid.esm.min.mjs";
+    import { registerBPMNFlow } from "./src/bpmn-flow.js";
 
-<div id="diagram"></div>
+    // Register our custom BPMN diagram type
+    registerBPMNFlow(mermaid);
 
+    const editor = document.getElementById('editor');
+    const diagram = document.getElementById('diagram');
 
-<script type="module">
-import * as mermaid from "https://cdn.jsdelivr.net/npm/mermaid@9.4.0/dist/mermaid.esm.min.mjs";
-import { registerBPMNFlow } from "./src/bpmn-flow.js";
+    window.renderDiagram = () => {
+      const text = editor.value.trim();
+      diagram.innerHTML = `<div class="mermaid">${text}</div>`;
+      try {
+        mermaid.init(undefined, diagram);
+      } catch (err) {
+        diagram.innerHTML = `<pre style="color: crimson">${err.message}</pre>`;
+        console.error(err);
+      }
+    };
 
+    document.getElementById('renderBtn').addEventListener('click', window.renderDiagram);
 
-// Register our custom BPMN diagram type
-registerBPMNFlow(mermaid);
+    document.getElementById('exampleBtn').addEventListener('click', async () => {
+      const resp = await fetch('examples/order-process.mmd');
+      const txt = await resp.text();
+      editor.value = txt;
+      window.renderDiagram();
+    });
 
-
-const editor = document.getElementById('editor');
-const diagram = document.getElementById('diagram');
-
-
-window.renderDiagram = () => {
-const text = editor.value.trim();
-diagram.innerHTML = `<div class="mermaid">${text}</div>`;
-try {
-mermaid.init(undefined, diagram);
-} catch (err) {
-diagram.innerHTML = `<pre style="color: crimson">${err.message}</pre>`;
-console.error(err);
-}
-};
-
-
-document.getElementById('renderBtn').addEventListener('click', window.renderDiagram);
-
-
-document.getElementById('exampleBtn').addEventListener('click', async () => {
-const resp = await fetch('examples/order-process.mmd');
-const txt = await resp.text();
-editor.value = txt;
-window.renderDiagram();
+    window.renderDiagram();
+  </script>
+</body>
 </html>
