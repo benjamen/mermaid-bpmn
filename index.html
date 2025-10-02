@@ -2,41 +2,63 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Mermaid BPMN Flow Playground</title>
+  <title>Mermaid BPMN Playground</title>
   <link rel="stylesheet" href="src/bpmn-theme.css">
-  <script type="module" src="src/bpmn-flow.js"></script>
 </head>
 <body>
-  <h1>BPMN Flow Playground</h1>
+  <h1>Mermaid BPMN Playground</h1>
+
   <textarea id="editor" rows="10" cols="60">bpmnFlow
 startEvent start
-task "Validate Order" as T1
-gateway "Payment OK?" as G1
-task "Ship Order" as T2
+task T1 "Validate Order"
+gateway G1 "Payment OK?"
+task T2 "Ship Order"
 endEvent end
 
-start --> T1 --> G1
-G1 -->|yes| T2 --> end
+start --> T1
+T1 --> G1
+G1 -->|yes| T2
 G1 -->|no| end
+T2 --> end
   </textarea>
-  <button onclick="renderDiagram()">Render</button>
+  <div class="controls">
+    <button id="renderBtn">Render</button>
+    <button id="exampleBtn">Load Example</button>
+  </div>
+
   <div id="diagram"></div>
 
   <script type="module">
-    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@9.4.0/dist/mermaid.esm.min.mjs";
     import { registerBPMNFlow } from "./src/bpmn-flow.js";
 
-    // Register our extension
+    // Register our custom BPMN diagram type
     registerBPMNFlow(mermaid);
 
+    const editor = document.getElementById('editor');
+    const diagram = document.getElementById('diagram');
+
+    // Function to render the diagram
     window.renderDiagram = () => {
-      const text = document.getElementById("editor").value;
-      const container = document.getElementById("diagram");
-      container.innerHTML = `<div class="mermaid">${text}</div>`;
-      mermaid.init(undefined, container);
+      const text = editor.value.trim();
+      diagram.innerHTML = `<div class="mermaid">${text}</div>`;
+      try {
+        mermaid.init(undefined, diagram);
+      } catch (err) {
+        diagram.innerHTML = `<pre style="color: crimson">${err.message}</pre>`;
+        console.error(err);
+      }
     };
 
-    // Render once on load
+    document.getElementById('renderBtn').addEventListener('click', window.renderDiagram);
+    document.getElementById('exampleBtn').addEventListener('click', async () => {
+      const resp = await fetch('examples/order-process.mmd');
+      const txt = await resp.text();
+      editor.value = txt;
+      window.renderDiagram();
+    });
+
+    // Initial render
     window.renderDiagram();
   </script>
 </body>
