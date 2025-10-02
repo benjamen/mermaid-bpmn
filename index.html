@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mermaid BPMN Flow Playground</title>
+  <link rel="stylesheet" href="src/bpmn-theme.css">
+  <script type="module" src="src/bpmn-flow.js"></script>
+</head>
+<body>
+  <h1>BPMN Flow Playground</h1>
+  <textarea id="editor" rows="10" cols="60">bpmnFlow
+startEvent start
+task "Validate Order" as T1
+gateway "Payment OK?" as G1
+task "Ship Order" as T2
+endEvent end
+
+start --> T1 --> G1
+G1 -->|yes| T2 --> end
+G1 -->|no| end
+  </textarea>
+  <button onclick="renderDiagram()">Render</button>
+  <div id="diagram"></div>
+
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    import { registerBPMNFlow } from "./src/bpmn-flow.js";
+
+    // Register our extension
+    registerBPMNFlow(mermaid);
+
+    window.renderDiagram = () => {
+      const text = document.getElementById("editor").value;
+      const container = document.getElementById("diagram");
+      container.innerHTML = `<div class="mermaid">${text}</div>`;
+      mermaid.init(undefined, container);
+    };
+
+    // Render once on load
+    window.renderDiagram();
+  </script>
+</body>
+</html>

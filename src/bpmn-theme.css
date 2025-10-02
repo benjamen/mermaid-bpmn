@@ -1,0 +1,20 @@
+.bpmn-task {
+  fill: #e0f7fa;
+  stroke: #006064;
+  stroke-width: 2px;
+}
+.bpmn-start {
+  fill: white;
+  stroke: green;
+  stroke-width: 2px;
+}
+.bpmn-end {
+  fill: white;
+  stroke: red;
+  stroke-width: 3px;
+}
+.bpmn-gateway {
+  fill: #fff9c4;
+  stroke: #f57f17;
+  stroke-width: 2px;
+}

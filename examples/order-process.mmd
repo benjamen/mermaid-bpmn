@@ -1,0 +1,10 @@
+bpmnFlow
+startEvent "Order Received"
+task "Validate Order" as T1
+gateway "Payment Approved?" as G1
+task "Ship Goods" as T2
+endEvent "Complete"
+
+start --> T1 --> G1
+G1 -->|yes| T2 --> end
+G1 -->|no| end
