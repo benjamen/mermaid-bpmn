@@ -3,36 +3,33 @@ name: Build & Deploy Vite Site
 on:
   push:
     branches:
-      - main  # deploy on pushes to main
+      - main
+
+# 👇 Give the built-in GITHUB_TOKEN write access
+permissions:
+  contents: write
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout the repo
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # 2. Set up Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
-      # 3. Install dependencies
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      # 4. Build the Vite project
       - name: Build
         run: npm run build
 
-      # 5. Deploy dist/ to gh-pages branch
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          # Optional: set commit message for deployments
-          commit_message: "Deploy Mermaid BPMN plugin to GitHub Pages"
