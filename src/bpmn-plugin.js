@@ -1,261 +1,244 @@
-// bpmn-plugin.js
-// Robust BPMN renderer: correct parsing, branch-aware layout, polyline routing, actor backgrounds.
+// main.js
+import mermaid from "mermaid";
+import { bpmnPlugin } from "./bpmn-plugin.js";
 
-function getNodeSizeByType(type) {
-  // default width/height for types (used for attachment points)
-  switch (type) {
-    case "startEvent":
-    case "endEvent": return { width: 60, height: 60 };
-    case "gateway": return { width: 80, height: 80 };
-    case "task": default: return { width: 100, height: 50 };
+mermaid.initialize({
+  startOnLoad: false,
+  plugins: [bpmnPlugin]
+});
+
+const editor = document.getElementById("editor");
+const diagram = document.getElementById("diagram");
+
+// ---- Helpers ----
+function createSvgElement(tag, attrs = {}) {
+  const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [key, val] of Object.entries(attrs)) {
+    el.setAttribute(key, val);
   }
+  return el;
 }
 
-function parseDSL(dsl) {
-  const lines = dsl.trim().split("\n").map(l => l.trim()).filter(Boolean);
-  const nodes = [];
-  const edges = [];
-
-  // Node parsing: (startEvent|task|gateway|endEvent) ID "Label" [actor: Name]
-  const nodeRe = /^(startEvent|task|gateway|endEvent)\s+([A-Za-z0-9_]+)\s*"(.+?)"(?:\s*\[actor:\s*(.+?)\])?$/;
-
-  // Edge parsing: handle `A -->|label| B` *and* `A --> B |label|` variants;
-  // groups: 1=from, 2=labelBefore (optional), 3=to, 4=labelAfter (optional)
-  const edgeRe = /^\s*([A-Za-z0-9_]+)\s*-->\s*(?:\|(.+?)\|\s*)?([A-Za-z0-9_]+)\s*(?:\|\s*(.+?)\s*\|)?\s*$/;
-
-  lines.forEach(line => {
-    let m = nodeRe.exec(line);
-    if (m) {
-      nodes.push({ type: m[1], id: m[2], label: m[3], actor: m[4] ? m[4].trim() : null });
-      return;
-    }
-    m = edgeRe.exec(line);
-    if (m) {
-      const from = m[1], label = (m[2] || m[4] || "").trim(), to = m[3];
-      edges.push({ from, to, label });
-      return;
-    }
-
-    // ignore other lines like "bpmnFlow" but warn if it looks like a malformed DSL line
-    if (!/^bpmnFlow$/i.test(line)) console.warn("Unrecognized DSL line (ignored):", line);
+function drawArrow(svg, x1, y1, x2, y2) {
+  const path = createSvgElement("path", {
+    d: `M${x1},${y1} L${x2},${y2}`,
+    stroke: "black",
+    "stroke-width": "2",
+    fill: "transparent",
+    "marker-end": "url(#arrow)"
   });
-
-  return { nodes, edges };
+  svg.appendChild(path);
 }
 
-function ensureAllNodesVisited(nodes, visitedSet, levelNodes, nodeY) {
-  // Place unvisited nodes on a new level below existing ones so they show up
-  const maxLevel = Math.max(...Object.keys(levelNodes).map(l => +l), 0);
-  const unvisited = nodes.filter(n => !visitedSet.has(n.id));
-  if (unvisited.length === 0) return;
-  const next = maxLevel + 1;
-  levelNodes[next] = levelNodes[next] || [];
-  unvisited.forEach(n => {
-    levelNodes[next].push(n.id);
-    nodeY[n.id] = 50 + next * 120;
+// ---- Renderer ----
+function renderDiagram(parsed) {
+  diagram.innerHTML = "";
+
+  const svg = createSvgElement("svg", {
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "800",
+    height: "600"
   });
-}
 
-function renderBPMN(dsl) {
-  const { nodes, edges } = parseDSL(dsl);
+  // defs for arrows
+  const defs = createSvgElement("defs");
+  const marker = createSvgElement("marker", {
+    id: "arrow",
+    markerWidth: "10",
+    markerHeight: "10",
+    refX: "10",
+    refY: "3",
+    orient: "auto",
+    markerUnits: "strokeWidth"
+  });
+  const arrowPath = createSvgElement("path", {
+    d: "M0,0 L0,6 L9,3 z",
+    fill: "#000"
+  });
+  marker.appendChild(arrowPath);
+  defs.appendChild(marker);
+  svg.appendChild(defs);
 
-  if (nodes.length === 0) return `<div style="color:red;">No nodes found in DSL</div>`;
+  // Layout variables
+  let x = 250;
+  let y = 70;
+  const vSpacing = 120;
+  const hSpacing = 160;
 
-  // Build adjacency and parent map
-  const adjacency = {};
-  const parentsMap = {};
-  nodes.forEach(n => { adjacency[n.id] = []; parentsMap[n.id] = []; });
+  const nodePositions = {};
 
-  edges.forEach(e => {
-    if (!adjacency[e.from]) {
-      console.warn(`Edge references unknown from-node: ${e.from}`);
-      // still create adjacency for robustness
-      adjacency[e.from] = [e.to];
-      parentsMap[e.to] = (parentsMap[e.to] || []).concat(e.from);
-    } else {
-      adjacency[e.from].push(e.to);
-      parentsMap[e.to] = (parentsMap[e.to] || []).concat(e.from);
+  parsed.nodes.forEach((node, idx) => {
+    if (node.type === "startEvent") {
+      const circle = createSvgElement("circle", {
+        cx: x,
+        cy: y,
+        r: 25,
+        fill: "#e3f2fd",
+        stroke: "#1976d2",
+        "stroke-width": 2
+      });
+      svg.appendChild(circle);
+
+      const text = createSvgElement("text", {
+        x,
+        y,
+        "text-anchor": "middle",
+        "alignment-baseline": "middle",
+        "font-size": "14"
+      });
+      text.textContent = node.label || "Start";
+      svg.appendChild(text);
+
+      nodePositions[node.id] = { x, y };
+      y += vSpacing;
+    }
+
+    else if (node.type === "task") {
+      const rect = createSvgElement("rect", {
+        x: x - 50,
+        y: y - 25,
+        width: 100,
+        height: 50,
+        rx: 5,
+        ry: 5,
+        fill: "#fff3e0",
+        stroke: "#f57c00",
+        "stroke-width": 2
+      });
+      svg.appendChild(rect);
+
+      const text = createSvgElement("text", {
+        x,
+        y,
+        "text-anchor": "middle",
+        "alignment-baseline": "middle",
+        "font-size": "14"
+      });
+      text.textContent = node.label;
+      svg.appendChild(text);
+
+      if (node.actor) {
+        const labelRect = createSvgElement("rect", {
+          x: x + 20,
+          y: y + 15,
+          width: 80,
+          height: 16,
+          fill: "#fff",
+          stroke: "#ccc",
+          rx: 2
+        });
+        svg.appendChild(labelRect);
+
+        const actorText = createSvgElement("text", {
+          x: x + 95,
+          y: y + 23,
+          "text-anchor": "end",
+          "alignment-baseline": "middle",
+          "font-size": "10",
+          fill: "#555"
+        });
+        actorText.textContent = node.actor;
+        svg.appendChild(actorText);
+      }
+
+      nodePositions[node.id] = { x, y };
+      y += vSpacing;
+    }
+
+    else if (node.type === "gateway") {
+      const points = [
+        `${x},${y - 40}`,
+        `${x + 40},${y}`,
+        `${x},${y + 40}`,
+        `${x - 40},${y}`
+      ].join(" ");
+      const diamond = createSvgElement("polygon", {
+        points,
+        fill: "#e8f5e9",
+        stroke: "#43a047",
+        "stroke-width": 2
+      });
+      svg.appendChild(diamond);
+
+      const text = createSvgElement("text", {
+        x,
+        y,
+        "text-anchor": "middle",
+        "alignment-baseline": "middle",
+        "font-size": "14"
+      });
+      text.textContent = node.label;
+      svg.appendChild(text);
+
+      nodePositions[node.id] = { x, y };
+      y += vSpacing;
+    }
+
+    else if (node.type === "endEvent") {
+      const circle = createSvgElement("circle", {
+        cx: x,
+        cy: y,
+        r: 25,
+        fill: "#e3f2fd",
+        stroke: "#1976d2",
+        "stroke-width": 2
+      });
+      svg.appendChild(circle);
+
+      const text = createSvgElement("text", {
+        x,
+        y,
+        "text-anchor": "middle",
+        "alignment-baseline": "middle",
+        "font-size": "14"
+      });
+      text.textContent = node.label || "End";
+      svg.appendChild(text);
+
+      nodePositions[node.id] = { x, y };
+      y += vSpacing;
     }
   });
 
-  // BFS to create levels (parents-first)
-  const levelNodes = {}; // level -> [ids]
-  const nodeY = {};
-  const nodeX = {};
-  const visited = new Set();
+  // draw edges
+  parsed.edges.forEach(edge => {
+    const from = nodePositions[edge.from];
+    const to = nodePositions[edge.to];
+    if (from && to) {
+      drawArrow(svg, from.x, from.y + 25, to.x, to.y - 25);
 
-  let start = nodes.find(n => n.type === "startEvent") || nodes[0];
-  if (!start) return `<div style="color:red;">No start node found</div>`;
+      if (edge.label) {
+        const text = createSvgElement("text", {
+          x: (from.x + to.x) / 2,
+          y: (from.y + to.y) / 2,
+          "text-anchor": "middle",
+          "alignment-baseline": "middle",
+          "font-size": "12",
+          fill: "#333"
+        });
+        text.textContent = edge.label;
+        svg.appendChild(text);
+      }
+    }
+  });
 
-  const queue = [{ id: start.id, level: 0 }];
-  while (queue.length) {
-    const { id, level } = queue.shift();
-    if (visited.has(id)) continue;
-    visited.add(id);
-    levelNodes[level] = levelNodes[level] || [];
-    levelNodes[level].push(id);
-    nodeY[id] = 50 + level * 120;
+  diagram.appendChild(svg);
+}
 
-    const children = adjacency[id] || [];
-    children.forEach(childId => {
-      if (!visited.has(childId)) queue.push({ id: childId, level: level + 1 });
-    });
+// ---- Main render hook ----
+window.renderDiagram = async () => {
+  const rawText = editor.value;
+
+  const diagramObj = bpmnPlugin.preprocess(rawText);
+  if (diagramObj) {
+    renderDiagram(diagramObj);
+  } else {
+    diagram.innerHTML = `<div class="mermaid">${rawText}</div>`;
+    mermaid.init(undefined, diagram);
   }
-
-  // If any nodes weren't reached (disconnected), append them in next level
-  ensureAllNodesVisited(nodes, visited, levelNodes, nodeY);
-
-  // Layout: assign X, level-by-level (parents first), then shift so leftmost >= margin
-  const minSpacing = 150;
-  const marginLeft = 50;
-  const baseStartX = 200;
-
-  const sortedLevels = Object.keys(levelNodes).map(Number).sort((a,b)=>a-b);
-  sortedLevels.forEach(lvl => {
-    const ids = levelNodes[lvl];
-    // first, assign X from parents' average if parents exist
-    ids.forEach(id => {
-      const parents = parentsMap[id] || [];
-      if (parents.length > 0) {
-        const sum = parents.reduce((s, p) => s + (nodeX[p] ?? baseStartX), 0);
-        nodeX[id] = sum / parents.length;
-      } else {
-        // placeholder; will layout evenly below
-        nodeX[id] = null;
-      }
-    });
-
-    // For any nodes without parent-derived X, lay them left-to-right
-    let curX = baseStartX - ((ids.length - 1) * minSpacing) / 2; // center-start
-    ids.forEach(id => {
-      if (nodeX[id] === null) {
-        nodeX[id] = curX;
-        curX += minSpacing;
-      }
-    });
-
-    // Collision avoidance: ensure separation >= minSpacing
-    const order = ids.slice().sort((a,b)=> (nodeX[a]||0) - (nodeX[b]||0));
-    for (let i = 1; i < order.length; i++) {
-      const prev = nodeX[order[i-1]];
-      if (nodeX[order[i]] - prev < minSpacing) {
-        nodeX[order[i]] = prev + minSpacing;
-      }
-    }
-
-    // ensure left margin
-    ids.forEach(id => { if (nodeX[id] < marginLeft) nodeX[id] = marginLeft; });
-  });
-
-  // After all Xs set, if leftmost < marginLeft shift everything right
-  const xs = Object.values(nodeX).filter(v=>typeof v === "number");
-  const minX = Math.min(...xs);
-  if (minX < marginLeft) {
-    const shift = marginLeft - minX;
-    Object.keys(nodeX).forEach(k => nodeX[k] += shift);
-  }
-
-  // Compute full SVG bounds
-  const allX = Object.values(nodeX);
-  const allY = Object.values(nodeY);
-  const svgWidth = Math.max(...allX) + 150;
-  const svgHeight = Math.max(...allY) + 150;
-
-  // Helper for node dimensions
-  const nodeMap = {};
-  nodes.forEach(n => nodeMap[n.id] = n);
-
-  // Begin SVG
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${svgWidth}" height="${svgHeight}">
-<defs>
-  <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
-    <path d="M0,0 L0,6 L9,3 z" fill="#000"/>
-  </marker>
-</defs>
-`;
-
-  // Edge routing as polylines (vertical out from parent's bottom -> horizontal -> down to child top)
-  edges.forEach(e => {
-    const from = e.from, to = e.to;
-    if (!nodeMap[from]) { console.warn("Missing from-node for edge:", e); return; }
-    if (!nodeMap[to]) { console.warn("Missing to-node for edge:", e); return; }
-
-    const fromType = nodeMap[from].type, toType = nodeMap[to].type;
-    const { width: w1, height: h1 } = getNodeSizeByType(fromType);
-    const { width: w2, height: h2 } = getNodeSizeByType(toType);
-
-    const startX = nodeX[from];
-    const startY = nodeY[from] + h1 / 2;   // bottom of parent
-    const endX = nodeX[to];
-    const endY = nodeY[to] - h2 / 2;       // top of child
-
-    // mid Y ensures the horizontal segment is between levels
-    const midY = (startY + endY) / 2;
-
-    const path = `M${startX},${startY} L${startX},${midY} L${endX},${midY} L${endX},${endY}`;
-    svg += `<path d="${path}" stroke="black" stroke-width="2" fill="transparent" marker-end="url(#arrow)"/>`;
-
-    if (e.label) {
-      const labelX = (startX + endX) / 2;
-      const labelY = midY - 8;
-      // small background for label (improves readability)
-      svg += `<rect x="${labelX - 30}" y="${labelY - 12}" width="${Math.max(40, e.label.length*7)}" height="16" fill="#fff" opacity="0.9" rx="2"/>`;
-      svg += `<text x="${labelX}" y="${labelY}" text-anchor="middle" alignment-baseline="middle" font-size="12" fill="#000">${e.label}</text>`;
-    }
-  });
-
-  // Draw nodes + actor backgrounds
-  nodes.forEach(n => {
-    const x = nodeX[n.id] ?? 0;
-    const y = nodeY[n.id] ?? 0;
-    const { width, height } = getNodeSizeByType(n.type);
-
-    switch (n.type) {
-      case "startEvent":
-      case "endEvent":
-        svg += `<circle cx="${x}" cy="${y}" r="${width/2}" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>`;
-        break;
-      case "gateway":
-        // diamond centered at x,y; size ~ width/height
-        svg += `<polygon points="${x},${y - height/2} ${x+width/2},${y} ${x},${y+height/2} ${x-width/2},${y}" fill="#e8f5e9" stroke="#43a047" stroke-width="2"/>`;
-        break;
-      case "task":
-      default:
-        const left = x - width/2;
-        const top = y - height/2;
-        svg += `<rect x="${left}" y="${top}" width="${width}" height="${height}" rx="6" ry="6" fill="#fff3e0" stroke="#f57c00" stroke-width="2"/>`;
-        break;
-    }
-
-    // main label centered
-    svg += `<text x="${x}" y="${y}" text-anchor="middle" alignment-baseline="middle" font-size="14">${n.label}</text>`;
-
-    // actor label (bottom-right inside task box) with background
-    if (n.actor && n.type === "task") {
-      const left = x - width/2;
-      const top = y - height/2;
-      const paddingX = 6, paddingY = 4;
-      const approxCharW = 7; // rough per-character width
-      const actorText = n.actor;
-      const rectW = Math.max(40, actorText.length * approxCharW + paddingX * 2);
-      const rectH = 14 + paddingY * 2; // font-size 14 baseline
-      const rectX = left + width - rectW - 6; // 6px inner margin from right edge
-      const rectY = top + height - rectH - 6; // 6px inner margin from bottom edge
-
-      // background with slight opacity so edges under it won't show through
-      svg += `<rect x="${rectX}" y="${rectY}" width="${rectW}" height="${rectH}" rx="4" fill="#fff" stroke="#ccc"/>`;
-      svg += `<text x="${rectX + paddingX}" y="${rectY + rectH / 2}" alignment-baseline="middle" text-anchor="start" font-size="12" fill="#333">${actorText}</text>`;
-    }
-  });
-
-  svg += `</svg>`;
-  return svg;
-}
-
-export const bpmnPlugin = {
-  type: "diagram",
-  name: "bpmnFlow",
-  preprocess: (t) => t,
-  parser: (t) => t,
-  renderer: (t) => renderBPMN(t)
 };
+
+document.getElementById("renderBtn").addEventListener("click", window.renderDiagram);
+
+// initial render
+window.renderDiagram();
