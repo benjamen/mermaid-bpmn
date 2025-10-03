@@ -95,20 +95,5 @@ function renderBPMN(dsl) {
   return svg;
 }
 
-// Example usage:
-const dsl = `
-bpmnFlow
-startEvent start "Start"
-task T1 "Validate Order"
-gateway G1 "Payment OK?"
-task T2 "Ship Order"
-endEvent end "End"
-
-start --> T1
-T1 --> G1
-G1 -->|yes| T2
-G1 -->|no| end
-T2 --> end
-`;
-
-document.body.innerHTML = renderBPMN(dsl);
+// Export as named ES module
+export { renderBPMN as bpmnPlugin };
