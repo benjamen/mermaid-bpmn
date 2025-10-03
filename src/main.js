@@ -11,13 +11,15 @@ const diagram = document.getElementById("diagram");
 
 window.renderDiagram = async () => {
   const rawText = editor.value;
-  
+
   // Call plugin preprocessor manually
   const diagramObj = bpmnPlugin.preprocess(rawText);
-  
+
   if (diagramObj) {
-    await bpmnPlugin.renderer.draw(diagramObj, "diagram");
+    // Renderer returns SVG string; inject it into the container
+    diagram.innerHTML = bpmnPlugin.renderer(diagramObj);
   } else {
+    // fallback: render as standard Mermaid diagram
     diagram.innerHTML = `<div class="mermaid">${rawText}</div>`;
     mermaid.init(undefined, diagram);
   }

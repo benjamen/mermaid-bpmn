@@ -1,5 +1,6 @@
 // bpmn-plugin.js
 
+// Your existing render function
 function renderBPMN(dsl) {
   const lines = dsl.trim().split("\n");
 
@@ -95,5 +96,19 @@ function renderBPMN(dsl) {
   return svg;
 }
 
-// Export as named ES module
-export { renderBPMN as bpmnPlugin };
+// Mermaid-compatible plugin object
+export const bpmnPlugin = {
+  type: "diagram",
+  name: "bpmnFlow",
+
+  // preprocess is required by Mermaid
+  preprocess: (text) => text,
+
+  // parser is optional for simple text input, returning the DSL
+  parser: (text) => text,
+
+  // renderer produces SVG from DSL
+  renderer: (text) => {
+    return renderBPMN(text);
+  }
+};
