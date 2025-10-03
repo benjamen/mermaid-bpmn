@@ -1,6 +1,5 @@
 // bpmn-plugin.js
 
-// Your existing render function
 function renderBPMN(dsl) {
   const lines = dsl.trim().split("\n");
 
@@ -23,17 +22,31 @@ function renderBPMN(dsl) {
     }
   });
 
+  // Debug: warn if no nodes or edges
+  if (nodes.length === 0) console.warn("No nodes detected in DSL.");
+  if (edges.length === 0) console.warn("No edges detected in DSL.");
+
   // Compute vertical levels using DFS
   const levels = {};
   function dfs(id, depth) {
+    if (!id) return;
     levels[id] = Math.max(levels[id] || 0, depth);
     edges.filter(e => e.from === id).forEach(e => dfs(e.to, depth + 1));
   }
-  const startNode = nodes.find(n => n.type === "startEvent");
-  dfs(startNode.id, 0);
 
+  const startNode = nodes.find(n => n.type === "startEvent");
+  if (!startNode) {
+    console.warn("No startEvent node found. Using first node as start.");
+    dfs(nodes[0]?.id, 0);
+  } else {
+    dfs(startNode.id, 0);
+  }
+
+  // Compute Y positions
   const nodeY = {};
-  Object.entries(levels).forEach(([id, depth]) => nodeY[id] = 50 + depth * 100);
+  Object.entries(levels).forEach(([id, depth]) => {
+    nodeY[id] = 50 + depth * 100;
+  });
 
   // Compute horizontal positions per level
   const levelCounts = {};
@@ -45,7 +58,7 @@ function renderBPMN(dsl) {
   });
 
   // Start SVG
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600">
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="600">
 <defs>
   <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
     <path d="M0,0 L0,6 L9,3 z" fill="#000"/>
@@ -53,12 +66,15 @@ function renderBPMN(dsl) {
 </defs>
 `;
 
-  // Draw edges
+  // Draw edges safely
   edges.forEach(e => {
-    const x1 = nodeX[e.from];
-    const y1 = nodeY[e.from] + 30;
-    const x2 = nodeX[e.to];
-    const y2 = nodeY[e.to] - 30;
+    const x1 = nodeX[e.from] ?? 0;
+    const y1 = nodeY[e.from] ?? 0;
+    const x2 = nodeX[e.to] ?? 0;
+    const y2 = nodeY[e.to] ?? 0;
+
+    if (!nodes.find(n => n.id === e.from)) console.warn(`Edge from unknown node: ${e.from}`);
+    if (!nodes.find(n => n.id === e.to)) console.warn(`Edge to unknown node: ${e.to}`);
 
     svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>`;
 
@@ -69,10 +85,10 @@ function renderBPMN(dsl) {
     }
   });
 
-  // Draw nodes
+  // Draw nodes safely
   nodes.forEach(n => {
-    const x = nodeX[n.id];
-    const y = nodeY[n.id];
+    const x = nodeX[n.id] ?? 0;
+    const y = nodeY[n.id] ?? 0;
     let shape = "";
 
     switch(n.type) {
@@ -100,15 +116,7 @@ function renderBPMN(dsl) {
 export const bpmnPlugin = {
   type: "diagram",
   name: "bpmnFlow",
-
-  // preprocess is required by Mermaid
   preprocess: (text) => text,
-
-  // parser is optional for simple text input, returning the DSL
   parser: (text) => text,
-
-  // renderer produces SVG from DSL
-  renderer: (text) => {
-    return renderBPMN(text);
-  }
+  renderer: (text) => renderBPMN(text)
 };
