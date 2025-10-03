@@ -1,9 +1,9 @@
 bpmnFlow
-startEvent "Order Received"
-task "Validate Order" as T1
-gateway "Payment Approved?" as G1
-task "Ship Goods" as T2
-endEvent "Complete"
+startEvent start "Start"
+task T1 "Validate Order" actor="John Doe"
+gateway G1 "Payment OK?"
+task T2 "Ship Order" actor="Jane Smith"
+endEvent end "End"
 
 start --> T1
 T1 --> G1

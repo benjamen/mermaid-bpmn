@@ -1,4 +1,3 @@
-// src/main.js
 import mermaid from "mermaid";
 import { bpmnPlugin } from "./bpmn-plugin.js";
 
@@ -8,7 +7,8 @@ mermaid.initialize({
   theme: "default",
 });
 
-mermaid.registerDiagram("bpmn", bpmnPlugin);
+// ✅ Call the plugin function to return the object
+mermaid.registerDiagram("bpmnFlow", bpmnPlugin());
 
 const bpmnText = `
 bpmnFlow

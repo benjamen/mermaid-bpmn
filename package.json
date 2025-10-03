@@ -13,7 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
-    "mermaid": "^10.4.0"
+    "mermaid": "^10.9.0"
   },
   "devDependencies": {
     "vite": "^7.1.8",
