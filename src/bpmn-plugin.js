@@ -1,89 +1,114 @@
-export const bpmnPlugin = {
-  id: "bpmnFlowPlugin",
+// bpmn-plugin.js
 
-  // Preprocessor: detect bpmnFlow diagrams
-  preprocess: (text) => {
-    if (text.trim().startsWith("bpmnFlow")) {
-      return {
-        type: "bpmnFlow",
-        content: text.replace(/^bpmnFlow/, "").trim()
-      };
+function renderBPMN(dsl) {
+  const lines = dsl.trim().split("\n");
+
+  const nodes = [];
+  const edges = [];
+
+  // Parse nodes
+  lines.forEach(line => {
+    const nodeMatch = line.match(/(startEvent|task|gateway|endEvent)\s+(\w+)\s*"(.+)"/);
+    if (nodeMatch) {
+      nodes.push({ type: nodeMatch[1], id: nodeMatch[2], label: nodeMatch[3] });
     }
-    return null; // other diagram types
-  },
+  });
 
-  renderer: {
-    draw: async (diagramObj, elementId) => {
-      const container = document.getElementById(elementId);
-      if (!container) return;
-
-      const lines = diagramObj.content.split("\n").map(l => l.trim()).filter(Boolean);
-
-      const nodes = [];
-      const edges = [];
-
-      // Parse nodes
-      lines.forEach(line => {
-        const match = line.match(/(startEvent|task|gateway|endEvent)\s+(\w+)(?:\s+"(.+)")?/);
-        if (match) {
-          nodes.push({
-            type: match[1],
-            id: match[2],
-            label: match[3] || match[2]
-          });
-        }
-      });
-
-      // Parse connections
-      lines.forEach(line => {
-        const match = line.match(/(\w+)\s*-->\s*(\w+)/);
-        if (match) edges.push({ from: match[1], to: match[2] });
-      });
-
-      // Simple layout: vertical spacing
-      const nodeY = {};
-      nodes.forEach((n, i) => nodeY[n.id] = 50 + i * 70);
-
-      // Render SVG
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="${50 + nodes.length*80}">`;
-
-      // Draw edges (lines)
-      edges.forEach(e => {
-        const x1 = 200;
-        const y1 = nodeY[e.from] + 30;
-        const x2 = 200;
-        const y2 = nodeY[e.to] + 30;
-        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>`;
-      });
-
-      // Arrowhead marker
-      svg += `
-        <defs>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto">
-            <path d="M0,0 L10,5 L0,10 Z" fill="black"/>
-          </marker>
-        </defs>
-      `;
-
-      // Draw nodes
-      nodes.forEach((n, i) => {
-        const y = nodeY[n.id];
-        if (n.type === "startEvent") svg += `<circle cx="200" cy="${y}" r="20" class="bpmn-start"/><text x="200" y="${y+5}" text-anchor="middle">${n.label}</text>`;
-        if (n.type === "endEvent") svg += `<circle cx="200" cy="${y}" r="20" class="bpmn-end"/><text x="200" y="${y+5}" text-anchor="middle">${n.label}</text>`;
-        if (n.type === "task") svg += `<rect x="150" y="${y-30}" width="100" height="60" rx="8" ry="8" class="bpmn-task"/><text x="200" y="${y+5}" text-anchor="middle">${n.label}</text>`;
-        if (n.type === "gateway") svg += `<polygon points="200,${y-30} 230,${y} 200,${y+30} 170,${y}" class="bpmn-gateway"/><text x="200" y="${y+5}" text-anchor="middle">${n.label}</text>`;
-      });
-
-      svg += "</svg>";
-      container.innerHTML = svg;
+  // Parse edges
+  lines.forEach(line => {
+    const edgeMatch = line.match(/(\w+)\s*-->\s*(\w+)(?:\s*\|(.+?)\|)?/);
+    if (edgeMatch) {
+      edges.push({ from: edgeMatch[1], to: edgeMatch[2], label: edgeMatch[3] || "" });
     }
-  },
+  });
 
-  styles: `
-    .bpmn-task { fill: #e0f7fa; stroke: #006064; stroke-width: 2; }
-    .bpmn-start { fill: white; stroke: green; stroke-width: 2; }
-    .bpmn-end { fill: white; stroke: red; stroke-width: 3; }
-    .bpmn-gateway { fill: #fff9c4; stroke: #f57f17; stroke-width: 2; }
-    text { font-family: Arial, sans-serif; font-size: 12px; }
-  `
-};
+  // Compute vertical levels using DFS
+  const levels = {};
+  function dfs(id, depth) {
+    levels[id] = Math.max(levels[id] || 0, depth);
+    edges.filter(e => e.from === id).forEach(e => dfs(e.to, depth + 1));
+  }
+  const startNode = nodes.find(n => n.type === "startEvent");
+  dfs(startNode.id, 0);
+
+  const nodeY = {};
+  Object.entries(levels).forEach(([id, depth]) => nodeY[id] = 50 + depth * 100);
+
+  // Compute horizontal positions per level
+  const levelCounts = {};
+  const nodeX = {};
+  Object.entries(levels).forEach(([id, depth]) => {
+    if (!levelCounts[depth]) levelCounts[depth] = 0;
+    nodeX[id] = 100 + levelCounts[depth] * 200; // horizontal spacing
+    levelCounts[depth]++;
+  });
+
+  // Start SVG
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600">
+<defs>
+  <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth">
+    <path d="M0,0 L0,6 L9,3 z" fill="#000"/>
+  </marker>
+</defs>
+`;
+
+  // Draw edges
+  edges.forEach(e => {
+    const x1 = nodeX[e.from];
+    const y1 = nodeY[e.from] + 30;
+    const x2 = nodeX[e.to];
+    const y2 = nodeY[e.to] - 30;
+
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="black" stroke-width="2" marker-end="url(#arrow)"/>`;
+
+    if (e.label) {
+      const midX = (x1 + x2) / 2;
+      const midY = (y1 + y2) / 2 - 5;
+      svg += `<text x="${midX}" y="${midY}" text-anchor="middle" font-size="12" fill="black">${e.label}</text>`;
+    }
+  });
+
+  // Draw nodes
+  nodes.forEach(n => {
+    const x = nodeX[n.id];
+    const y = nodeY[n.id];
+    let shape = "";
+
+    switch(n.type) {
+      case "startEvent":
+      case "endEvent":
+        shape = `<circle cx="${x}" cy="${y}" r="30" fill="#e3f2fd" stroke="#1976d2" stroke-width="2"/>`;
+        break;
+      case "task":
+        shape = `<rect x="${x-50}" y="${y-25}" width="100" height="50" rx="5" ry="5" fill="#fff3e0" stroke="#f57c00" stroke-width="2"/>`;
+        break;
+      case "gateway":
+        shape = `<polygon points="${x},${y-40} ${x+40},${y} ${x},${y+40} ${x-40},${y}" fill="#e8f5e9" stroke="#43a047" stroke-width="2"/>`;
+        break;
+    }
+
+    svg += shape;
+    svg += `<text x="${x}" y="${y}" text-anchor="middle" alignment-baseline="middle" font-size="14">${n.label}</text>`;
+  });
+
+  svg += `</svg>`;
+  return svg;
+}
+
+// Example usage:
+const dsl = `
+bpmnFlow
+startEvent start "Start"
+task T1 "Validate Order"
+gateway G1 "Payment OK?"
+task T2 "Ship Order"
+endEvent end "End"
+
+start --> T1
+T1 --> G1
+G1 -->|yes| T2
+G1 -->|no| end
+T2 --> end
+`;
+
+document.body.innerHTML = renderBPMN(dsl);
