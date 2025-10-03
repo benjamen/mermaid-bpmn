@@ -1,58 +1,48 @@
-// bpmn-plugin.js
-export function bpmnPlugin() {
-  return {
-    id: "bpmn",
-    diagram: {
-      db: { clear() {} },
+// src/bpmn-plugin.js
+export const bpmnPlugin = {
+  id: "bpmnFlow",
+  type: "diagram",
+  parser: {
+    parse(text) {
+      this.definitions = [];
+      const lines = text.trim().split("\n");
+      for (const line of lines) {
+        const taskMatch = line.match(/task\s+(\w+)\s+"([^"]+)"(?:\s+actor="([^"]+)")?/);
+        const startMatch = line.match(/startEvent\s+(\w+)\s+"([^"]+)"/);
+        const endMatch = line.match(/endEvent\s+(\w+)\s+"([^"]+)"/);
+        const gatewayMatch = line.match(/gateway\s+(\w+)\s+"([^"]+)"/);
+        const arrowMatch = line.match(/(\w+)\s*-->\s*(?:\|([^|]+)\|)?\s*(\w+)/);
 
-      parser: {
-        parse(text) {
-          this.definitions = [];
-          const lines = text.trim().split("\n");
-
-          for (const line of lines) {
-            const taskMatch = line.match(/task\s+(\w+)\s+"([^"]+)"(?:\s+actor="([^"]+)")?/);
-            const startMatch = line.match(/startEvent\s+(\w+)\s+"([^"]+)"/);
-            const endMatch = line.match(/endEvent\s+(\w+)\s+"([^"]+)"/);
-            const gatewayMatch = line.match(/gateway\s+(\w+)\s+"([^"]+)"/);
-            const arrowMatch = line.match(/(\w+)\s*-->\s*(?:\|([^|]+)\|)?\s*(\w+)/);
-
-            if (taskMatch) {
-              this.definitions.push({ type: "task", id: taskMatch[1], label: taskMatch[2], actor: taskMatch[3] || null });
-            } else if (startMatch) {
-              this.definitions.push({ type: "startEvent", id: startMatch[1], label: startMatch[2] });
-            } else if (endMatch) {
-              this.definitions.push({ type: "endEvent", id: endMatch[1], label: endMatch[2] });
-            } else if (gatewayMatch) {
-              this.definitions.push({ type: "gateway", id: gatewayMatch[1], label: gatewayMatch[2] });
-            } else if (arrowMatch) {
-              this.definitions.push({ type: "flow", from: arrowMatch[1], to: arrowMatch[3], label: arrowMatch[2] || null });
-            }
-          }
-        },
-      },
-
-      renderer: {
-        async draw(text, id) {
-          const container = document.getElementById(id);
-          container.innerHTML = "";
-          renderBPMN(id, this.definitions);
-        },
-      },
-
-      styles: () => "",
+        if (taskMatch) {
+          this.definitions.push({ type: "task", id: taskMatch[1], label: taskMatch[2], actor: taskMatch[3] || null });
+        } else if (startMatch) {
+          this.definitions.push({ type: "startEvent", id: startMatch[1], label: startMatch[2] });
+        } else if (endMatch) {
+          this.definitions.push({ type: "endEvent", id: endMatch[1], label: endMatch[2] });
+        } else if (gatewayMatch) {
+          this.definitions.push({ type: "gateway", id: gatewayMatch[1], label: gatewayMatch[2] });
+        } else if (arrowMatch) {
+          this.definitions.push({ type: "flow", from: arrowMatch[1], to: arrowMatch[3], label: arrowMatch[2] || null });
+        }
+      }
+      return this.definitions;
     },
-  };
-}
+  },
+  renderer: {
+    async draw(definitions, containerId) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = "";
+      renderBPMN(container, definitions);
+    },
+  },
+};
 
-function renderBPMN(containerId, elements) {
+function renderBPMN(container, elements) {
   const svgNS = "http://www.w3.org/2000/svg";
-  const container = document.getElementById(containerId);
   const svg = document.createElementNS(svgNS, "svg");
   svg.setAttribute("width", "800");
   svg.setAttribute("height", "600");
 
-  // Arrow definition
   const defs = document.createElementNS(svgNS, "defs");
   defs.innerHTML = `
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3"
@@ -61,25 +51,11 @@ function renderBPMN(containerId, elements) {
     </marker>`;
   svg.appendChild(defs);
 
-  // Dynamic vertical layout
-  const stepY = 120;
-  const startX = 150;
-  const positions = {};
-  let currentY = stepY;
+  // crude layout, same as before
+  const positions = { start: { x: 150, y: 80 }, T1: { x: 150, y: 200 }, G1: { x: 150, y: 320 }, T2: { x: 350, y: 320 }, end: { x: 550, y: 320 } };
 
-  elements.forEach((el) => {
-    if (el.type === "startEvent") positions[el.id] = { x: startX, y: currentY };
-    if (el.type === "task") positions[el.id] = { x: startX, y: currentY };
-    if (el.type === "gateway") positions[el.id] = { x: startX, y: currentY };
-    if (el.type === "endEvent") positions[el.id] = { x: startX, y: currentY };
-    currentY += stepY;
-  });
-
-  // Helper functions
   const drawTask = (el) => {
     const { x, y } = positions[el.id];
-
-    // Task box
     const rect = document.createElementNS(svgNS, "rect");
     rect.setAttribute("x", x - 50);
     rect.setAttribute("y", y - 25);
@@ -92,7 +68,6 @@ function renderBPMN(containerId, elements) {
     rect.setAttribute("stroke-width", "2");
     svg.appendChild(rect);
 
-    // Task label
     const text = document.createElementNS(svgNS, "text");
     text.setAttribute("x", x);
     text.setAttribute("y", y);
@@ -102,25 +77,20 @@ function renderBPMN(containerId, elements) {
     text.textContent = el.label;
     svg.appendChild(text);
 
-    // Optional actor
     if (el.actor) {
-      const padding = 4;
-      const actorWidth = el.actor.length * 7 + padding * 2;
-      const actorHeight = 16;
-
       const bg = document.createElementNS(svgNS, "rect");
-      bg.setAttribute("x", x + 50 - actorWidth); // bottom-right
-      bg.setAttribute("y", y + 25 + 4);
-      bg.setAttribute("width", actorWidth);
-      bg.setAttribute("height", actorHeight);
+      bg.setAttribute("x", x + 5);
+      bg.setAttribute("y", y + 10);
+      bg.setAttribute("width", el.actor.length * 6 + 10);
+      bg.setAttribute("height", 16);
       bg.setAttribute("fill", "#fff");
       bg.setAttribute("stroke", "#ccc");
       bg.setAttribute("rx", "2");
       svg.appendChild(bg);
 
       const actorText = document.createElementNS(svgNS, "text");
-      actorText.setAttribute("x", x + 50 - padding);
-      actorText.setAttribute("y", y + 25 + actorHeight - 4);
+      actorText.setAttribute("x", x + 5 + el.actor.length * 6);
+      actorText.setAttribute("y", y + 22);
       actorText.setAttribute("text-anchor", "end");
       actorText.setAttribute("font-size", "10");
       actorText.setAttribute("fill", "#555");
@@ -194,7 +164,6 @@ function renderBPMN(containerId, elements) {
     }
   };
 
-  // --- render all elements
   elements.forEach((el) => {
     if (el.type === "startEvent" || el.type === "endEvent") drawCircle(el);
     if (el.type === "task") drawTask(el);

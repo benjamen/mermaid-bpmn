@@ -2,13 +2,11 @@ import mermaid from "mermaid";
 import { bpmnPlugin } from "./bpmn-plugin.js";
 
 mermaid.initialize({
-  startOnLoad: true,
+  startOnLoad: false,
   securityLevel: "loose",
   theme: "default",
+  extensions: [bpmnPlugin], // <- v10 uses 'extensions' array
 });
-
-// ✅ Call the plugin function to return the object
-mermaid.registerDiagram("bpmnFlow", bpmnPlugin());
 
 const bpmnText = `
 bpmnFlow
@@ -25,9 +23,8 @@ G1 -->|no| end
 T2 --> end
 `;
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const el = document.getElementById("diagram");
-  mermaid.render("bpmn1", bpmnText, (svgCode) => {
-    el.innerHTML = svgCode;
-  });
+  const definitions = bpmnPlugin.parser.parse(bpmnText);
+  await bpmnPlugin.renderer.draw(definitions, "diagram");
 });
