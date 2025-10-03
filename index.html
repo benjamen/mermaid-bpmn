@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mermaid BPMN v10 Plugin Playground</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    textarea { width: 600px; height: 200px; font-family: monospace; font-size: 14px; }
+    #diagram { margin-top: 20px; border: 1px solid #ccc; padding: 10px; }
+    
+    /* BPMN element styles */
+    .bpmn-task { fill: #e0f7fa; stroke: #006064; stroke-width: 2; }
+    .bpmn-start { fill: white; stroke: green; stroke-width: 2; }
+    .bpmn-end { fill: white; stroke: red; stroke-width: 3; }
+    .bpmn-gateway { fill: #fff9c4; stroke: #f57f17; stroke-width: 2; }
+    text { font-family: Arial, sans-serif; font-size: 12px; }
+  </style>
+  <script type="module" crossorigin src="/mermaid-bpmn-plugin/assets/index-DHCGU3V5.js"></script>
+</head>
+<body>
+  <h1>Mermaid BPMN v10 Plugin Playground</h1>
+
+  <textarea id="editor">
+bpmnFlow
+startEvent start "Start"
+task T1 "Validate Order"
+gateway G1 "Payment OK?"
+task T2 "Ship Order"
+endEvent end "End"
+
+start --> T1
+T1 --> G1
+G1 -->|yes| T2
+G1 -->|no| end
+T2 --> end
+  </textarea>
+
+  <br>
+  <button id="renderBtn">Render Diagram</button>
+
+  <div id="diagram"></div>
+
+</body>
+</html>
