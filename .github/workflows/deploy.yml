@@ -5,7 +5,7 @@ on:
     branches:
       - main
 
-# 👇 Give the built-in GITHUB_TOKEN write access
+# Give the built-in GITHUB_TOKEN write access
 permissions:
   contents: write
 
@@ -14,22 +14,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout the repository
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '20'
 
+      # 3. Install dependencies
       - name: Install dependencies
         run: npm ci
 
+      # 4. Build the Vite project
       - name: Build
         run: npm run build
 
+      # 5. Create .nojekyll to prevent GitHub Pages from ignoring files
+      - name: Add .nojekyll
+        run: echo "" > dist/.nojekyll
+
+      # 6. Deploy dist/ to gh-pages branch safely
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
+          publish_branch: gh-pages
+          force_orphan: true       # ensures orphan branch deployment to avoid conflicts
+          keep_files: false        # clears old files on gh-pages before deploy
