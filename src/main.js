@@ -11,9 +11,9 @@ mermaid.initialize({
 const bpmnText = `
 bpmnFlow
 startEvent start "Start"
-task T1 "Validate Order" actor="Alice"
+task T1 "Validate Order" actor="John Doe"
 gateway G1 "Payment OK?"
-task T2 "Ship Order" actor="Bob"
+task T2 "Ship Order" actor="Jane Smith"
 endEvent end "End"
 
 start --> T1
