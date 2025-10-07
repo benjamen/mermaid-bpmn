@@ -7,20 +7,7 @@ Zero backend, runs fully in-browser. Deployed easily via **GitHub Pages**.
 Once you enable Pages, you’ll get a live editor at:
 https://<your-username>.github.io/mermaid-bpmn/
 
-## ✍️ Usage
-Write a diagram like:
-```mermaid
-bpmnFlow
-startEvent "Order Received"
-task "Check Payment"
-gateway "Payment OK?"
-task "Ship Order"
-endEvent "Done"
-
-start --> T1 --> G1
-G1 -->|yes| T2 --> end
-G1 -->|no| end
-```
+Your site is live at https://benjamen.github.io/mermaid-bpmn-plugin/
 
 Click render → see BPMN-like diagram.
 
